@@ -7,6 +7,8 @@
 #include "tcp_topo.h"
 #include "utils.h"   // Para is_valid_ip e is_valid_port
 
+
+
 void handle_command(char *command, int udp_fd, char *reg_ip, int reg_udp_port, char *my_ip, int my_tcp_port, TopologyInfo *topo) {
     static int net = -1;
     static NodeInfo nodes[MAX_NODES];
@@ -48,14 +50,54 @@ void handle_command(char *command, int udp_fd, char *reg_ip, int reg_udp_port, c
         }
 
     } else if (strcmp(cmd, "leave") == 0 || strcmp(cmd, "l") == 0) {
-        if (net == -1) {
-            printf("Nenhum no para sair.\n");
-            return;
+
+        if (topo->num_intr > 0 &&
+            strcmp(topo->vzext_ip, topo->intr[0].ip) == 0 &&
+            topo->vzext_tcp == topo->intr[0].tcp_port) {
+
+            printf(">> Vizinho externo é igual ao primeiro vizinho interno. Removendo...\n");
+
+            // Remove o primeiro vizinho interno deslocando o array
+            for (int j = 0; j < topo->num_intr - 1; j++) {
+                topo->intr[j] = topo->intr[j + 1];
+            }
+            topo->num_intr--;
+
+            strcpy(topo->vzext_ip, topo->id_ip);
+            topo->vzext_tcp = topo->id_tcp;
+
+            printf(">> Vizinho interno duplicado removido.\n");
+        }
+
+        if (strcmp(topo->vzext_ip, topo->id_ip) != 0 || topo->vzext_tcp != topo->id_tcp) {
+            printf("AAA\n");
+            send_leave_message(topo->id_ip, topo->id_tcp, topo->vzext_ip, topo->vzext_tcp);
+        }
+
+        if (topo->num_intr > 0) {
+            printf("BBB\n");
+            // Notifica o primeiro vizinho interno normalmente
+            send_leave_message(topo->vzext_ip, topo->vzext_tcp, topo->intr[0].ip, topo->intr[0].tcp_port);
+
+            // Se houver mais vizinhos internos, envia LEAVE aos restantes com o IP/PORT do primeiro vizinho interno
+            for (int i = 1; i < topo->num_intr; i++) {
+                printf(">> Enviando LEAVE ao vizinho interno %s:%d com novo vizinho externo %s:%d\n",
+                    topo->intr[i].ip, topo->intr[i].tcp_port,
+                    topo->intr[0].ip, topo->intr[0].tcp_port);
+
+                send_leave_message(topo->intr[0].ip, topo->intr[0].tcp_port,
+                                topo->intr[i].ip, topo->intr[i].tcp_port);
+            }
         }
 
         if (udp_reg_leave(udp_fd, reg_ip, reg_udp_port, net, my_ip, my_tcp_port) == 0) {
             net = -1;
         }
+
+        printf(">> Limpando todos os vizinhos.\n");
+        strcpy(topo->vzext_ip, topo->id_ip);
+        topo->vzext_tcp = topo->id_tcp;
+        topo->num_intr = 0;
 
     } else if (strncmp(command, "show topology", 13) == 0 || strcmp(command, "st") == 0) {
         topology_print(topo);
@@ -102,6 +144,6 @@ void handle_command(char *command, int udp_fd, char *reg_ip, int reg_udp_port, c
         if (tcp_topo_djoin(ip, port, my_ip, my_tcp_port, topo) == 0) {
         }
     } else {
-        printf("Comando não reconhecido: %s\n", cmd);
+            printf("Comando não reconhecido: %s\n", cmd);
     }
 }

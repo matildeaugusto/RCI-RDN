@@ -87,6 +87,10 @@ int main(int argc, char *argv[]) {
         close(tcp_listen_fd);
         return 1;
     }
+
+    strcpy(topo.id_ip, my_ip);
+    topo.id_tcp = my_tcp_port;
+    
     show_commands();
 
     char buffer[256];

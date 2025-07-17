@@ -15,6 +15,9 @@ typedef struct {
 
     NodeInfo intr[MAX_NODES];
     int num_intr;
+
 } TopologyInfo;
+
+
 
 #endif
